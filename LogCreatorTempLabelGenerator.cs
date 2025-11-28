@@ -136,7 +136,7 @@ internal class LogCreatorTempLabelGenerator
             
             // assumes any existing local label (+/-) we're replacing is IDENTICAL to what we're adding
             // otherwise, it's going to create an error
-            Data.TemporaryLabelProvider.AddOrReplaceTemporaryLabel(snesDestOffset, new Label { Name = stateToUse.Label });
+            Data.TemporaryLabelProvider.AddOrReplaceTemporaryLabel(snesDestOffset, new TempLabel { Name = stateToUse.Label });
         }
     }
 
