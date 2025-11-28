@@ -8,14 +8,9 @@
         "resolved": "30.0.3",
         "contentHash": "OK4xEoPKFZYZ2Km+ZTGRxuLo33u+ipKVCC9ICCGn5JRiAmPLRsCPZ/shL3HKGPwS33MQSPcPHigI4HnX3Q47yg=="
       },
-      "LightInject": {
-        "type": "Direct",
-        "requested": "[6.6.4, )",
-        "resolved": "6.6.4",
-        "contentHash": "xId1F9OpzVvyNu3wcdPR4EcNUihcT5U9wiUJOi0tetuDOia1uAiFJzqmYGdRPsqAsgDb6o8sfoQCx5yMFFDsVw=="
-      },
       "ExtendedXmlSerializer": {
-        "type": "Transitive",
+        "type": "Direct",
+        "requested": "[3.9.6, )",
         "resolved": "3.9.6",
         "contentHash": "kwnF5RjDwzle4cpUN4AWOCBAbntCkLQez5SIl2cY6hamWL33vEYu5Pp35BKkg/oklXnvaYobzJrFezRi9dl9tA==",
         "dependencies": {
@@ -24,6 +19,12 @@
           "Sprache": "2.3.1",
           "System.Collections.Immutable": "7.0.0"
         }
+      },
+      "LightInject": {
+        "type": "Direct",
+        "requested": "[6.6.4, )",
+        "resolved": "6.6.4",
+        "contentHash": "xId1F9OpzVvyNu3wcdPR4EcNUihcT5U9wiUJOi0tetuDOia1uAiFJzqmYGdRPsqAsgDb6o8sfoQCx5yMFFDsVw=="
       },
       "FluentValidation": {
         "type": "Transitive",
