@@ -260,6 +260,18 @@ public class LogCreator : ILogCreatorForGenerator
                 LogCreator = this,
                 LabelTracker = LabelTracker,
             },
+            
+            // optional: same as above BUT output all labels even if they're not used (same data as above, just as CSV)
+            new AsmStepExtraOutputAllLabelsXml
+            {
+                // if wanted, make this a separate setting for XML export. for now if they check "export extra label stuff"
+                // we'll just include the XML stuff by default. (lazy/dummmb)
+                Enabled = Settings.IncludeUnusedLabels,
+                OutputFilename = "all-labels.xml",
+
+                LogCreator = this,
+                LabelTracker = LabelTracker,
+            },
 
             // optional: same as above EXCEPT this time we'll do it as a .sym file, which BSNES's debugger can read
             new AsmStepExtraOutputBsneSymFile

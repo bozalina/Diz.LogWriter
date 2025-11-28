@@ -384,9 +384,10 @@ public class AssemblyGenerateLabelAssign : AssemblyPartialLineGenerator
         
         var labelComment = labelProvider.GetLabelComment(snesAddress) ?? "";
 
-        var allLabelNames = new List<string>();
-        
-        allLabelNames.Add(label.Name);
+        var allLabelNames = new List<string> {
+            label.Name
+        };
+
         allLabelNames.AddRange(label.ContextMappings.Select(x => x.NameOverride));
         
         return allLabelNames

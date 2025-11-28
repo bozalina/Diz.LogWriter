@@ -3,10 +3,14 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Xml;
 using CsvHelper;
 using Diz.Core.Interfaces;
+using Diz.Core.model;
 using Diz.Core.util;
 using Diz.LogWriter.assemblyGenerators;
+using ExtendedXmlSerializer;
+using ExtendedXmlSerializer.Configuration;
 using JetBrains.Annotations;
 
 namespace Diz.LogWriter;
@@ -169,6 +173,38 @@ public class AsmStepExtraOutputAllLabelsCsv : AsmStepWriteAllLabels
     }
 }
     
+
+
+// export all labels as XML 
+public class AsmStepExtraOutputAllLabelsXml : AsmStepWriteAllLabels
+{
+    protected override void Execute()
+    {
+        // base.Execute(); // don't call, we're doing everything manually
+        LogCreator.SwitchOutputStream(OutputFilename);
+        
+        var serializerConfig = GetLabelXmlSerializer();
+        
+        var xmlStr = serializerConfig.Create().Serialize(
+            new XmlWriterSettings {Indent = true},
+            Data.Labels.Labels
+        );
+        
+        LogCreator.WriteLine(xmlStr); // writes entire XML file (with newlines etc)
+    }
+    
+    public IConfigurationContainer GetLabelXmlSerializer()
+    {
+        return new ConfigurationContainer()
+            .EnableImplicitTyping(typeof(ContextMapping))
+            
+            .Type<Label>()
+            .EnableImplicitTyping()
+            
+            .UseOptimizedNamespaces()
+            .UseAutoFormatting();
+    }
+}
     
 
 // same as above except output as a BSNES .sym file, for use with the BSNES debugger
