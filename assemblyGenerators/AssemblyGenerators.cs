@@ -165,6 +165,7 @@ public class AssemblyGenerateMap : AssemblyPartialLineGenerator
             RomMapMode.SuperFx => "sfxrom",
             RomMapMode.ExHiRom => "exhirom",
             RomMapMode.ExLoRom => "exlorom",
+            RomMapMode.WramImage => "norom", // flat $7E WRAM image: only "norom" lets Asar map $7E:xxxx
             _ => ""
         };
         return GenerateFromStr(Util.LeftAlign(length, romMapType));
