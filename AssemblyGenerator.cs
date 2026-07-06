@@ -22,6 +22,9 @@ public interface ILogCreatorForGenerator
     // WARNING: introduces side-effects and means the asm must be generated before the defines in the step order,
     // or we won't get the data.  kinda sucks if we need to re-order things
     void OnInstructionVisited(int offset, CpuInstructionDataFormatted cpuInstructionDataFormatted);
+
+    // cache a single-byte !!db data override so a "!name = $xx" define can be emitted later
+    void OnDataByteOverridden(int offset, string originalHexValue, string overrideExpr);
 }
 
 public abstract class TokenBase

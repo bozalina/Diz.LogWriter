@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using Diz.Core.Interfaces;
 using Diz.Core.model;
@@ -139,7 +140,11 @@ public static class LogCreatorExtensions
             if (data.Labels.GetLabel(endSnesAddress) != null)
                 break;
 
-            if (data.GetComment(endSnesAddress) != null)
+            // a plain byte-comment ends the run so it can be attached to its own line,
+            // but a !!db/!!dw/!!dl data-byte directive is rendered in-place inside this run,
+            // so it must NOT split the run into separate lines.
+            var endComment = data.GetComment(endSnesAddress);
+            if (endComment != null && DataByteDirective.TryParse(endComment) == null)
                 break;
 
             if ((offset + min) / bankSize != myBank)
@@ -302,4 +307,80 @@ public static class LogCreatorExtensions
 
         return res;
     }
+
+    // Render a run of data bytes as a db/dw/dl/dd line, substituting any !!db/!!dw/!!dl
+    // symbolic override (stored in a byte's comment) in place of the raw hex and advancing
+    // by the directive's declared width. Falls back to Diz's per-element hex when no override
+    // is present, so a run with ZERO overrides renders byte-for-byte identically to
+    // GetFormattedBytes above. The substitution happens in-place inside the comma list.
+    public static string GetFormattedBytesWithDataOverrides(this ISnesApi<IData> data, int offset, int step, int bytes,
+        ILogCreatorForGenerator logCreator)
+    {
+        var lineKeyword = DataDirectiveKeyword(step);
+
+        // walk the run, emitting one (keyword, element) per value: a directive contributes
+        // its own-width keyword + expression and advances by its width; every other position
+        // contributes the line's keyword + a hex element and advances by step.
+        var segments = new List<(string keyword, string element)>();
+        for (var i = 0; i < bytes;)
+        {
+            var directive = DataByteDirective.TryParse(data.GetComment(data.ConvertPCtoSnes(offset + i)));
+
+            // honor the directive only if its declared width fits within what remains of this
+            // run. otherwise (a !!dw/!!dl whose span would cross the run's end into a labeled /
+            // region-boundary byte) fall through to raw hex so we never overshoot and double-emit
+            // the next line's bytes; the un-applied directive is visible as raw hex.
+            if (directive != null && i + directive.Value.WidthBytes <= bytes)
+            {
+                var width = directive.Value.WidthBytes;
+                segments.Add((DataDirectiveKeyword(width), directive.Value.Expr));
+
+                // only single-byte !!db overrides auto-generate a "!name = $xx" define
+                // (identical to the operand-override case). !!dw/!!dl never do.
+                if (width == 1)
+                    logCreator.OnDataByteOverridden(offset + i, FormatHexElement(data, offset + i, 1), directive.Value.Expr);
+
+                i += width;
+            }
+            else
+            {
+                segments.Add((lineKeyword, FormatHexElement(data, offset + i, step)));
+                i += step;
+            }
+        }
+
+        // coalesce consecutive same-keyword elements into one comma list ("db a,b,c");
+        // join runs of differing keywords with asar's " : " statement separator so a
+        // mixed-width line ("db $AA : dw VMDATAL : db $BB") still assembles byte-exact.
+        // With zero directives this is a single group == the old GetFormattedBytes output.
+        var res = new StringBuilder();
+        for (var idx = 0; idx < segments.Count;)
+        {
+            var keyword = segments[idx].keyword;
+            res.Append(res.Length == 0 ? "" : " : ").Append(keyword).Append(' ').Append(segments[idx].element);
+            idx++;
+            while (idx < segments.Count && segments[idx].keyword == keyword)
+                res.Append(',').Append(segments[idx++].element);
+        }
+
+        return res.ToString();
+    }
+
+    private static string DataDirectiveKeyword(int widthBytes) => widthBytes switch
+    {
+        1 => "db",
+        2 => "dw",
+        3 => "dl",
+        4 => "dd",
+        _ => ""
+    };
+
+    private static string FormatHexElement(IReadOnlyByteSource data, int offset, int step) => step switch
+    {
+        1 => Util.NumberToBaseString(data.GetRomByteUnsafe(offset), Util.NumberBase.Hexadecimal, 2, true),
+        2 => Util.NumberToBaseString(data.GetRomWordUnsafe(offset), Util.NumberBase.Hexadecimal, 4, true),
+        3 => Util.NumberToBaseString(data.GetRomLongUnsafe(offset), Util.NumberBase.Hexadecimal, 6, true),
+        4 => Util.NumberToBaseString(data.GetRomDoubleWordUnsafe(offset), Util.NumberBase.Hexadecimal, 8, true),
+        _ => ""
+    };
 }

@@ -414,33 +414,36 @@ public class LogCreator : ILogCreatorForGenerator
     {
         if (instruction.OverriddenOperand1.Length > 0 && instruction.OriginalNonOverridenOperand1 == instruction.OverriddenOperand1)
             return;
-        
-        // if we use a define in the override, let's register it here.
-        // that way, we can output all defines in a list later.
 
         // example of a valid mapping looks like this:
         // OriginalNonOverridenOperand1 = "$03"
         // OverriddenOperand1 = "!num_humans"
+        RememberOverrideDefineIfApplicable(offset, instruction.OriginalNonOverridenOperand1, instruction.OverriddenOperand1);
+    }
+
+    // when an override replaces a raw hex value with a bare !define name, register it so
+    // we can output all defines in a list later (defines.asm). shared by the operand-override
+    // (!!o) path above and the single-byte data override (!!db) path. multi-byte data values
+    // (!!dw/!!dl) are intentionally NOT routed here: they are frequently addresses that should
+    // be labels, not value-constants.
+    private void RememberOverrideDefineIfApplicable(int offset, string originalValue, string defineName)
+    {
+        // if we use a define in the override, let's register it here.
 
         // validate: needs to be a hex number
-        var originalValue = instruction.OriginalNonOverridenOperand1;
         if (!originalValue.StartsWith('$'))
             return;
-        
-        // validate: needs to look like a !define and no expressions or other stuff
-        var defineName = instruction.OverriddenOperand1;
-        if (!defineName.StartsWith('!') ||  // must start with this
-            defineName.Contains('-') ||
-            defineName.Contains('+') ||
-            defineName.Contains('|') ||
-            defineName.Contains('[') ||
-            defineName.Contains(','))
+
+        // validate: must be a bare !define name (an identifier). anything with expression
+        // operators (&, |, +, -, [, ',', <<, (), etc.) is an expression emitted verbatim and
+        // must NOT be minted as a define (e.g. "!VMDATAL&$FF" references an existing define).
+        if (!IsBareDefineName(defineName))
             return;
-        
+
         // normalize the value (seems like the right place to do this is here, but,
         // it might be OK to do this earlier in the Cpu operations that generate this)
         originalValue = Util.ChopExtraZeroesFromHexStr(originalValue);
-        
+
         // ok we appear to have found a valid define.
         // let's add it if one doesn't exist.   if multiple exist in the project, they MUST all match or else
         // the output assembly won't be byte-identical.  we'll note the error but that's about it.
@@ -450,11 +453,33 @@ public class LogCreator : ILogCreatorForGenerator
             // if already defined, it must be the same value, or it's an error
             if (existingValue != originalValue)
                 OnErrorReported(offset, $"Define '{defineName}' redefined with different value, must fix or generated asm will be wrong.");
-            
+
             return;
         }
 
         visitedDefines.Add(defineName, originalValue);
+    }
+
+    // called by the data-byte renderer when a single-byte !!db override maps a raw hex byte
+    // value to a bare !define name; mints "!name = $xx" into the generated defines.
+    public void OnDataByteOverridden(int offset, string originalHexValue, string overrideExpr) =>
+        RememberOverrideDefineIfApplicable(offset, originalHexValue, overrideExpr);
+
+    // true only for a bare "!identifier" (leading '!' then [A-Za-z0-9_]) — i.e. something we
+    // can mint as "!name = $xx". Expressions like "!VMDATAL&$FF" or "!A|!B" return false.
+    private static bool IsBareDefineName(string name)
+    {
+        if (name.Length < 2 || name[0] != '!')
+            return false;
+
+        for (var i = 1; i < name.Length; i++)
+        {
+            var c = name[i];
+            if (c is not ((>= 'a' and <= 'z') or (>= 'A' and <= 'Z') or (>= '0' and <= '9') or '_'))
+                return false;
+        }
+
+        return true;
     }
 
     public int GetLineByteLength(int offset) => Data.GetLineByteLength(offset, GetRomSize(), Settings.DataPerLine);

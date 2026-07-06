@@ -90,14 +90,14 @@ public class AssemblyGenerateCode : AssemblyPartialLineGenerator
             FlagType.Opcode => RenderInstructionStr(offset),
             
             // treat all these as 8bit data
-            FlagType.Unreached or 
-            FlagType.Operand or 
-            FlagType.Data8Bit or FlagType.Graphics or FlagType.Music or FlagType.Empty => 
-                snesApi.GetFormattedBytes(offset, 1, bytes),
-            
-            FlagType.Data16Bit => snesApi.GetFormattedBytes(offset, 2, bytes),
-            FlagType.Data24Bit => snesApi.GetFormattedBytes(offset, 3, bytes),
-            FlagType.Data32Bit => snesApi.GetFormattedBytes(offset, 4, bytes),
+            FlagType.Unreached or
+            FlagType.Operand or
+            FlagType.Data8Bit or FlagType.Graphics or FlagType.Music or FlagType.Empty =>
+                snesApi.GetFormattedBytesWithDataOverrides(offset, 1, bytes, LogCreator),
+
+            FlagType.Data16Bit => snesApi.GetFormattedBytesWithDataOverrides(offset, 2, bytes, LogCreator),
+            FlagType.Data24Bit => snesApi.GetFormattedBytesWithDataOverrides(offset, 3, bytes, LogCreator),
+            FlagType.Data32Bit => snesApi.GetFormattedBytesWithDataOverrides(offset, 4, bytes, LogCreator),
             FlagType.Pointer16Bit => snesApi.GeneratePointerStr(offset, 2),
             FlagType.Pointer24Bit => snesApi.GeneratePointerStr(offset, 3),
             FlagType.Pointer32Bit => snesApi.GeneratePointerStr(offset, 4),
