@@ -324,7 +324,11 @@ public static class LogCreatorExtensions
         var segments = new List<(string keyword, string element)>();
         for (var i = 0; i < bytes;)
         {
-            var directive = DataByteDirective.TryParse(data.GetComment(data.ConvertPCtoSnes(offset + i)));
+            // resolve the directive from the byte's comment, falling back to its label's
+            // comment (GetCommentText: byte comment first, else label comment). A data table's
+            // anchor byte is labeled and can't also hold a byte comment, so a directive placed
+            // at the start of the label comment is how that anchor byte gets symbolicated.
+            var directive = DataByteDirective.TryParse(data.GetCommentText(data.ConvertPCtoSnes(offset + i)));
 
             // honor the directive only if its declared width fits within what remains of this
             // run. otherwise (a !!dw/!!dl whose span would cross the run's end into a labeled /
