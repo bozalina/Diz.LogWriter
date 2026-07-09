@@ -5,6 +5,7 @@ using Diz.Core.Interfaces;
 using Diz.Core.model;
 using Diz.Core.util;
 using Diz.Cpu._65816;
+using Diz.LogWriter.util;
 
 namespace Diz.LogWriter.assemblyGenerators;
 
@@ -79,6 +80,13 @@ public class AssemblyGenerateCode : AssemblyPartialLineGenerator
     }
     protected override TokenBase[] Generate(int offset, int length, LineGenerator.TokenExtraContext context = null)
     {
+        // an !!incbin directive replaces this data run with a single incbin line; the operand is
+        // emitted verbatim (the user supplies the quotes/path). GetLineByteLength returns the
+        // directive's byte count, so the run's bytes are skipped by the outer emit loop.
+        var incbin = IncBinDirective.TryParse(Data.GetCommentText(Data.ConvertPCtoSnes(offset)));
+        if (incbin != null)
+            return GenerateFromStr(Util.LeftAlign(length, $"incbin {incbin.Value.Operand}"));
+
         var bytes = LogCreator.GetLineByteLength(offset);
 
         var snesApi = Data.Data.GetSnesApi();

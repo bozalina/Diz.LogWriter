@@ -5,6 +5,7 @@ using Diz.Core.Interfaces;
 using Diz.Core.model.snes;
 using Diz.Core.util;
 using Diz.Cpu._65816;
+using Diz.LogWriter.util;
 using JetBrains.Annotations;
 
 namespace Diz.LogWriter;
@@ -66,6 +67,34 @@ public class AsmCreationInstructions : AsmCreationBase
         var snesAddress = Data.ConvertPCtoSnes(offset);
         if (snesAddress % Data.GetBankSize() != 0)
             LogCreator.OnErrorReported(offset, "An instruction crossed a bank boundary.");
+    }
+
+    // an !!incbin directive at `offset` makes GetLineByteLength skip N bytes (collapsing them into
+    // one incbin line). validate that span here so a bad count is reported (bumping ErrorCount)
+    // instead of silently corrupting output: it must stay inside the ROM and inside one bank, and
+    // no label may fall strictly inside it (a swallowed label would vanish from the source).
+    private void CheckForIncBinErrors(int offset)
+    {
+        var incbin = IncBinDirective.TryParse(Data.GetCommentText(Data.ConvertPCtoSnes(offset)));
+        if (incbin == null)
+            return;
+
+        var n = incbin.Value.ByteCount;
+
+        if (offset + n > LogCreator.GetRomSize()) {
+            LogCreator.OnErrorReported(offset, $"incbin byte count {n} runs past the end of the ROM.");
+            return;
+        }
+
+        if (GetBankFromOffset(offset) != GetBankFromOffset(offset + n - 1)) {
+            LogCreator.OnErrorReported(offset, $"incbin span of {n} bytes crosses a bank boundary.");
+        }
+
+        for (var i = 1; i < n; i++) {
+            var label = Data.Labels.GetLabel(Data.ConvertPCtoSnes(offset + i));
+            if (label?.Name.Length > 0)
+                LogCreator.OnErrorReported(offset + i, $"label '{label.Name}' falls inside an incbin span and would be dropped.");
+        }
     }
 
     // includes both real regions from Data, and
@@ -274,6 +303,7 @@ public class AsmCreationInstructions : AsmCreationBase
         WriteBlankLineIfStartingNewParagraph(offset);
         GenerateAndWriteCodeOutputLinesForRomOffset(offset);    // the important thing
         LogCreator.DataErrorChecking.CheckForErrorsAt(offset);
+        CheckForIncBinErrors(offset);
         WriteBlankLineIfEndPoint(offset);
 
         // TODO: WARNING: TECHNICALLY, we should be checking for bank and region crosses
