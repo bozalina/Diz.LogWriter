@@ -282,7 +282,15 @@ public class LogCreator : ILogCreatorForGenerator
                 LogCreator = this,
                 LabelTracker = LabelTracker,
             },
-            
+
+            // optional metadata: bins.json — manifest of every !!incbin asset. Always on for
+            // multi-file exports; disabled in single-file mode (it writes its own sidecar stream).
+            new AsmStepWriteIncBinList
+            {
+                LogCreator = this,
+                Enabled = !singleFileMode,
+            },
+
             // REQUIRED: output any defines if present:
             // NOTE: for now, this step must come AFTER AsmCreationInstructions because we require
             // population of the visitedDEfines
