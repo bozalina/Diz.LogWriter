@@ -80,12 +80,17 @@ public class AssemblyGenerateCode : AssemblyPartialLineGenerator
     }
     protected override TokenBase[] Generate(int offset, int length, LineGenerator.TokenExtraContext context = null)
     {
-        // an !!incbin directive replaces this data run with a single incbin line; the operand is
-        // emitted verbatim (the user supplies the quotes/path). GetLineByteLength returns the
-        // directive's byte count, so the run's bytes are skipped by the outer emit loop.
-        var incbin = IncBinDirective.TryParse(Data.GetCommentText(Data.ConvertPCtoSnes(offset)));
+        // an !!incbin directive replaces this data run with a single incbin line. The filename is
+        // derived from the anchor byte's label ("<label>.bin", or "UNKNOWN_<addr>.bin" when there is
+        // no label) so the emitted line and the bins.json manifest always agree. GetLineByteLength
+        // returns the directive's byte count, so the run's bytes are skipped by the outer emit loop.
+        var snesAddress = Data.ConvertPCtoSnes(offset);
+        var incbin = IncBinDirective.TryParse(Data.GetCommentText(snesAddress));
         if (incbin != null)
-            return GenerateFromStr(Util.LeftAlign(length, $"incbin {incbin.Value.Operand}"));
+        {
+            var file = IncBinDirective.DeriveBinFilename(Data.Labels.GetLabelName(snesAddress), snesAddress);
+            return GenerateFromStr(Util.LeftAlign(length, $"incbin \"{file}\""));
+        }
 
         var bytes = LogCreator.GetLineByteLength(offset);
 

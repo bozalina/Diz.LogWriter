@@ -3,21 +3,19 @@ using System.Globalization;
 namespace Diz.LogWriter.util;
 
 // An incbin directive parsed from a data byte's comment (or its label's comment):
-//   !!incbin:N <operand>   -> replace the next N ROM bytes with a single line:  incbin <operand>
+//   !!incbin:N            -> collapse the next N ROM bytes into one line:  incbin "<label>.bin"
+//   !!incbin:N ; <note>   -> same, and capture <note> for the bins.json manifest
 //
-// N (the byte count this line collapses/skips) is decimal or $-prefixed hex, so it can be
-// written the same way asset sizes appear elsewhere (e.g. !!incbin:$34 or !!incbin:52).
-// <operand> is emitted VERBATIM after "incbin " — the user supplies the quotes and the path,
-// and is responsible for putting the referenced file where asar can find it. Diz never reads,
-// writes, or edits that file; from its perspective the operand is an opaque string.
+// N (the byte count this line collapses/skips) is decimal or $-prefixed hex. The emitted
+// filename is derived from the anchor byte's label via DeriveBinFilename (the operand the old
+// format required has been removed). Any non-whitespace text between N and the first ';' (e.g. a
+// stale operand from the old format) is ignored, so old comments still parse.
 //
-// Mirrors DataByteDirective's conventions: the directive must be at the very start of the
-// comment, and a trailing "; human note" is ignored. Because it is read via GetCommentText
-// (byte comment first, else label comment) it can sit on a data table's labeled anchor byte.
+// The directive must be at the very start of the comment. <note> is the text after the first ';'.
 public readonly struct IncBinDirective
 {
     public int ByteCount { get; private init; }   // number of ROM bytes this line collapses
-    public string Operand { get; private init; }  // verbatim text emitted after "incbin "
+    public string Note { get; private init; }      // text after the first ';' (the manifest comment); "" if none
 
     private const string Prefix = "!!incbin:";
 
@@ -26,31 +24,38 @@ public readonly struct IncBinDirective
         if (string.IsNullOrEmpty(comment))
             return null;
 
-        // a trailing "; human note" after the directive is not part of the directive
-        var text = comment;
-        var semicolon = text.IndexOf(';');
+        if (!comment.StartsWith(Prefix))
+            return null;
+
+        // the note is everything after the first ';'
+        var note = "";
+        var body = comment;
+        var semicolon = comment.IndexOf(';');
         if (semicolon >= 0)
-            text = text[..semicolon];
-        text = text.Trim();
+        {
+            note = comment[(semicolon + 1)..].Trim();
+            body = comment[..semicolon];
+        }
 
-        if (!text.StartsWith(Prefix))
-            return null;
-
-        // "<count> <operand>": the count token runs up to the first space, the rest is the operand
-        var rest = text[Prefix.Length..];
+        // body is "!!incbin:<count>[ <ignored stale operand>]"; the count token runs up to the
+        // first space, and anything after it (before the ';') is ignored.
+        var rest = body[Prefix.Length..].Trim();
         var space = rest.IndexOf(' ');
-        if (space <= 0)
-            return null; // need both a count and a following operand
+        var countToken = space < 0 ? rest : rest[..space];
 
-        if (!TryParseCount(rest[..space], out var byteCount) || byteCount <= 0)
+        if (!TryParseCount(countToken, out var byteCount) || byteCount <= 0)
             return null;
 
-        var operand = rest[(space + 1)..].Trim();
-        if (operand.Length == 0)
-            return null;
-
-        return new IncBinDirective { ByteCount = byteCount, Operand = operand };
+        return new IncBinDirective { ByteCount = byteCount, Note = note };
     }
+
+    // The filename emitted into the incbin line AND recorded in bins.json. Both call this so they
+    // can never disagree. A missing label falls back to a per-address name so multiple unlabeled
+    // assets don't collide on a single "UNKNOWN.bin".
+    public static string DeriveBinFilename(string labelName, int snesAddress) =>
+        string.IsNullOrEmpty(labelName)
+            ? $"UNKNOWN_{snesAddress:X6}.bin"
+            : $"{labelName}.bin";
 
     private static bool TryParseCount(string token, out int value)
     {
