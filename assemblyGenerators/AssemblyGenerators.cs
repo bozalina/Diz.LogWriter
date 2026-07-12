@@ -80,17 +80,15 @@ public class AssemblyGenerateCode : AssemblyPartialLineGenerator
     }
     protected override TokenBase[] Generate(int offset, int length, LineGenerator.TokenExtraContext context = null)
     {
-        // an !!incbin directive replaces this data run with a single incbin line. The filename is
-        // derived from the anchor byte's label ("<label>.bin", or "UNKNOWN_<addr>.bin" when there is
-        // no label) so the emitted line and the bins.json manifest always agree. GetLineByteLength
-        // returns the directive's byte count, so the run's bytes are skipped by the outer emit loop.
-        var snesAddress = Data.ConvertPCtoSnes(offset);
-        var incbin = IncBinDirective.TryParse(Data.GetCommentText(snesAddress));
-        if (incbin != null)
-        {
-            var file = IncBinDirective.DeriveBinFilename(Data.Labels.GetLabelName(snesAddress), snesAddress);
-            return GenerateFromStr(Util.LeftAlign(length, $"incbin \"{file}\""));
-        }
+        // an !!incbin directive replaces this data run with incbin line(s). A non-straddling asset is
+        // a single `incbin "<label>.bin"`; an asset whose span crosses a bank boundary is emitted as
+        // the whole combined file referenced by one asar range-incbin per bank segment, split at each
+        // boundary (see IncBinSegmentMap). The filename derives from the anchor byte's label so the
+        // emitted line(s) and the bins.json manifest always agree. GetLineByteLength returns each
+        // segment's byte count, so the run's bytes are skipped by the outer emit loop one bank at a
+        // time (letting the normal bank switch + org fire at each boundary).
+        if (LogCreator.TryGetIncBinSegmentAt(offset, out var incBinSegment))
+            return GenerateFromStr(Util.LeftAlign(length, incBinSegment.ToIncbinLine()));
 
         var bytes = LogCreator.GetLineByteLength(offset);
 

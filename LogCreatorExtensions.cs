@@ -111,13 +111,10 @@ public static class LogCreatorExtensions
         if (flagType == FlagType.Opcode)
             return data.GetInstructionLength(offset);
 
-        // an !!incbin directive collapses the next N bytes into a single "incbin" line, so the
-        // run length IS the directive's declared byte count (bypassing the per-flag run walk and
-        // the DataPerLine cap). span validity (ROM end / bank cross / interior labels) is checked
-        // separately in AsmCreationInstructions so a bad count is reported rather than silent.
-        var incbin = IncBinDirective.TryParse(data.GetCommentText(data.ConvertPCtoSnes(offset)));
-        if (incbin != null)
-            return incbin.Value.ByteCount;
+        // NOTE: !!incbin runs are handled one segment at a time in LogCreator.GetLineByteLength (via
+        // IncBinSegmentMap), which is the only caller of this method — a straddling asset is split at
+        // bank boundaries, so its length can't be derived here from the anchor's byte count alone.
+        // span validity (ROM end / interior labels) is checked in AsmCreationInstructions.
 
         GetLineByteLengthMaxAndStep(flagType, out var max, out var step, countPerLine);
 

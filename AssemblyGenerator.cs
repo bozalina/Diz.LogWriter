@@ -14,6 +14,11 @@ public interface ILogCreatorForGenerator
     ILogCreatorDataSource<IData> Data { get; }
 
     int GetLineByteLength(int offset);
+
+    // the incbin segment (if any) that STARTS at this ROM offset — the anchor of an !!incbin asset,
+    // or a bank boundary inside a straddling asset's span. Consulted by the code generator to render
+    // the segment's `incbin` line and by GetLineByteLength to advance one segment at a time.
+    bool TryGetIncBinSegmentAt(int offset, out IncBinSegment segment);
     
     // report some events to the log creator so it can stash some meta-information about the assembly output
     void OnLabelVisited(int snesAddress);

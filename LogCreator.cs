@@ -169,6 +169,7 @@ public class LogCreator : ILogCreatorForGenerator
         LabelTracker = new LabelTracker(this);
         visitedDefines = new Dictionary<string, string>();
         UniqueVisitedBanks.Clear();
+        incBinSegmentMap = null;   // rebuilt lazily per export
             
         if (Settings.Unlabeled != LogWriterSettings.FormatUnlabeled.ShowNone)
         {
@@ -490,5 +491,23 @@ public class LogCreator : ILogCreatorForGenerator
         return true;
     }
 
-    public int GetLineByteLength(int offset) => Data.GetLineByteLength(offset, GetRomSize(), Settings.DataPerLine);
+    // offset -> incbin segment map, precomputed once per export (lazily on first query). An !!incbin
+    // span that crosses a bank boundary is emitted as several range-incbins of the whole file, one per
+    // bank; this map is what makes GetLineByteLength stop at each boundary and the generator render the
+    // right slice. Non-straddling assets map to a single WHOLE segment (unchanged output).
+    private Dictionary<int, IncBinSegment> incBinSegmentMap;
+
+    public bool TryGetIncBinSegmentAt(int offset, out IncBinSegment segment)
+    {
+        incBinSegmentMap ??= IncBinSegmentMap.Build(Data, GetRomSize());
+        return incBinSegmentMap.TryGetValue(offset, out segment);
+    }
+
+    // an !!incbin segment collapses its bytes into one line, so the run length IS the segment's byte
+    // count (this is where a straddling span is broken at bank boundaries — see IncBinSegmentMap).
+    // Everything else falls through to the normal per-flag run walk.
+    public int GetLineByteLength(int offset) =>
+        TryGetIncBinSegmentAt(offset, out var segment)
+            ? segment.Length
+            : Data.GetLineByteLength(offset, GetRomSize(), Settings.DataPerLine);
 }

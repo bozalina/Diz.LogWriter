@@ -70,9 +70,12 @@ public class AsmCreationInstructions : AsmCreationBase
     }
 
     // an !!incbin directive at `offset` makes GetLineByteLength skip N bytes (collapsing them into
-    // one incbin line). validate that span here so a bad count is reported (bumping ErrorCount)
-    // instead of silently corrupting output: it must stay inside the ROM and inside one bank, and
-    // no label may fall strictly inside it (a swallowed label would vanish from the source).
+    // incbin line(s)). validate that span here so a bad count is reported (bumping ErrorCount)
+    // instead of silently corrupting output. A span that crosses a bank boundary is NOT an error:
+    // it is emitted as the whole file sliced by one range-incbin per bank (see IncBinSegmentMap), so
+    // each bank re-enters at its own org. It must, however, stay inside the ROM, and no label may
+    // fall strictly INSIDE a segment (a swallowed label would vanish from the source) — a label at a
+    // bank boundary starts the next segment and IS emitted, so it is allowed.
     private void CheckForIncBinErrors(int offset)
     {
         var incbin = IncBinDirective.TryParse(Data.GetCommentText(Data.ConvertPCtoSnes(offset)));
@@ -86,11 +89,13 @@ public class AsmCreationInstructions : AsmCreationBase
             return;
         }
 
-        if (GetBankFromOffset(offset) != GetBankFromOffset(offset + n - 1)) {
-            LogCreator.OnErrorReported(offset, $"incbin span of {n} bytes crosses a bank boundary.");
-        }
-
+        var bankSize = Data.GetBankSize();
         for (var i = 1; i < n; i++) {
+            // a label exactly at a bank boundary begins the next incbin segment and is emitted on its
+            // continuation line, so it is not swallowed; only labels strictly inside a segment vanish.
+            if ((offset + i) % bankSize == 0)
+                continue;
+
             var label = Data.Labels.GetLabel(Data.ConvertPCtoSnes(offset + i));
             if (label?.Name.Length > 0)
                 LogCreator.OnErrorReported(offset + i, $"label '{label.Name}' falls inside an incbin span and would be dropped.");
